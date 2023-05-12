@@ -1,0 +1,78 @@
+---
+#apiVersion: monitoring.coreos.com/v1
+#kind: PodMonitor
+#metadata:
+#  name: istio-sidecars
+#  namespace: istio-system
+#spec:
+#  selector:
+#    matchLabels:
+#      istio: ingressgateway
+#  podMetricsEndpoints:
+#    - port: http-envoy-prom
+#      path: /stats/prometheus
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    istio: ingressgateway
+    release: prometheus-stack
+  name: prometheus-oper-istio-dataplane
+  namespace: istio-system
+spec:
+  jobLabel: envoy-stats
+  endpoints:
+    - targetPort: http-envoy-prom
+      path: /stats/prometheus
+      interval: 15s
+      relabelings:
+      - sourceLabels: [__meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: '.*-envoy-prom'
+      - action: labelmap
+        regex: "__meta_kubernetes_pod_label_(.+)"
+      - sourceLabels: [__meta_kubernetes_namespace]
+        action: replace
+        targetLabel: namespace
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        action: replace
+        targetLabel: pod_name
+  #namespaceSelector:
+  #  matchNames:
+  #  - istio-system
+  #selector:
+  #  matchLabels:
+  #    istio: ingressgateway
+  #    #release: prometheus-stack
+  namespaceSelector: ##
+    any: true ##
+  selector: ##
+    matchExpressions: ##
+      - {key: istio-prometheus-ignore, operator: DoesNotExist} ##
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: istiod
+    release: prometheus-stack
+  name: prometheus-oper-istio-controlplane
+  namespace: istio-system
+spec:
+  endpoints:
+  - port: http-monitoring
+    interval: 15s
+  - port: http-policy-monitoring ##
+    interval: 15s ##
+  jobLabel: istio ##
+  selector: ##
+    matchExpressions: ##
+      - {key: istio, operator: In, values: [mixer,pilot,galley,citadel,sidecar-injector]} ##
+  namespaceSelector:
+    any: true
+  #selector:
+  #  matchLabels:
+  #    istio: pilot
+  #    app: istiod
+  #    #release: prometheus-stack
